@@ -34,7 +34,14 @@ async function displayTip(text) {
     try {
         const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
         if (tab && tab.id && /^https?:/.test(tab.url || '')) {
-            await chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TIP', text });
+            // Inject content script on-demand for existing tabs
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                files: ['content.js']
+            });
+            
+            // Send message after ensuring script is injected
+            chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TIP', text });
             return;
         }
     } catch (_) {
