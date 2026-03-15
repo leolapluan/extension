@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Countdown Timer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            width: 320px;
+            min-height: 420px;
+            background: #0d0d1a;
+            color: #e2e8f0;
+            font-family: 'Inter', system-ui, sans-serif;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 20px 20px;
+            gap: 20px;
+        }
+
+        /* Header */
+        .header {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .header-icon {
+            font-size: 18px;
+        }
+
+        .header h1 {
+            font-size: 15px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            background: linear-gradient(135deg, #a78bfa, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Ring */
+        .ring-wrapper {
+            position: relative;
+            width: 180px;
+            height: 180px;
+        }
+
+        .ring-svg {
+            width: 180px;
+            height: 180px;
+            transform: rotate(-90deg);
+        }
+
+        .ring-bg {
+            fill: none;
+            stroke: #1e1e35;
+            stroke-width: 8;
+        }
+
+        .ring-progress {
+            fill: none;
+            stroke: url(#ringGradient);
+            stroke-width: 8;
+            stroke-linecap: round;
+            stroke-dasharray: 502;
+            stroke-dashoffset: 0;
+            transition: stroke-dashoffset 1s linear;
+            filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.6));
+        }
+
+        .ring-center {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+        }
+
+        #display-time {
+            font-size: 36px;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: #f1f5f9;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+        }
+
+        #display-label {
+            font-size: 11px;
+            color: #6b7280;
+            font-weight: 500;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        /* Input section */
+        .input-section {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .input-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            gap: 4px;
+        }
+
+        .input-group label {
+            font-size: 10px;
+            color: #6b7280;
+            font-weight: 500;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .time-input {
+            width: 100%;
+            background: #141428;
+            border: 1.5px solid #2a2a4a;
+            border-radius: 10px;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            font-size: 22px;
+            font-weight: 600;
+            text-align: center;
+            padding: 8px 6px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            -moz-appearance: textfield;
+            appearance: textfield;
+        }
+
+        .time-input::-webkit-outer-spin-button,
+        .time-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .time-input:focus {
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2);
+        }
+
+        .sep {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4b5563;
+            padding-bottom: 14px;
+        }
+
+        /* Buttons */
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .btn {
+            flex: 1;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 11px 8px;
+            transition: opacity 0.15s, transform 0.1s, box-shadow 0.2s;
+            letter-spacing: 0.03em;
+        }
+
+        .btn:active {
+            transform: scale(0.96);
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #7c3aed, #4f46e5);
+            color: #fff;
+            box-shadow: 0 4px 16px rgba(124, 58, 237, 0.4);
+        }
+
+        .btn-start:hover {
+            box-shadow: 0 4px 24px rgba(124, 58, 237, 0.6);
+        }
+
+        .btn-pause {
+            background: linear-gradient(135deg, #374151, #1f2937);
+            color: #d1d5db;
+            border: 1.5px solid #374151;
+        }
+
+        .btn-pause:hover {
+            background: linear-gradient(135deg, #4b5563, #374151);
+        }
+
+        .btn-reset {
+            background: transparent;
+            color: #9ca3af;
+            border: 1.5px solid #2a2a4a;
+        }
+
+        .btn-reset:hover {
+            border-color: #4b5563;
+            color: #e2e8f0;
+        }
+
+        .btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        /* Status tag */
+        .status-tag {
+            font-size: 11px;
+            font-weight: 500;
+            color: #6b7280;
+            letter-spacing: 0.05em;
+            height: 16px;
+        }
+
+        .status-tag.running {
+            color: #a78bfa;
+        }
+
+        .status-tag.done {
+            color: #34d399;
+        }
+
+        .status-tag.paused {
+            color: #fbbf24;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <span class="header-icon">⏱</span>
+            <h1>Countdown</h1>
+        </div>
+
+        <div class="ring-wrapper">
+            <svg class="ring-svg" viewBox="0 0 180 180">
+                <defs>
+                    <linearGradient id="ringGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#a78bfa" />
+                        <stop offset="100%" stop-color="#4f46e5" />
+                    </linearGradient>
+                </defs>
+                <circle class="ring-bg" cx="90" cy="90" r="80" />
+                <circle id="ring-progress" class="ring-progress" cx="90" cy="90" r="80" />
+            </svg>
+            <div class="ring-center">
+                <div id="display-time">00:00:00</div>
+                <div id="display-label">ready</div>
+            </div>
+        </div>
+
+        <div class="input-section">
+            <div class="input-row">
+                <div class="input-group">
+                    <label for="input-hours">HH</label>
+                    <input id="input-hours" class="time-input" type="number" min="0" max="99" value="0"
+                        placeholder="0" />
+                </div>
+                <span class="sep">:</span>
+                <div class="input-group">
+                    <label for="input-minutes">MM</label>
+                    <input id="input-minutes" class="time-input" type="number" min="0" max="59" value="5"
+                        placeholder="0" />
+                </div>
+                <span class="sep">:</span>
+                <div class="input-group">
+                    <label for="input-seconds">SS</label>
+                    <input id="input-seconds" class="time-input" type="number" min="0" max="59" value="0"
+                        placeholder="0" />
+                </div>
+            </div>
+
+            <div class="btn-row">
+                <button id="btn-start" class="btn btn-start">▶ Start</button>
+                <button id="btn-pause" class="btn btn-pause" disabled>⏸ Pause</button>
+                <button id="btn-reset" class="btn btn-reset">↺ Reset</button>
+            </div>
+
+            <div id="status-tag" class="status-tag" style="text-align:center;">Set a duration above</div>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>
