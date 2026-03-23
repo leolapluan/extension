@@ -81,14 +81,7 @@
             font-weight: 500;
             color: #f5e6e6;
             letter-spacing: 0.01em;
-            padding-left: 100%;
-            animation: tickerScroll linear 1 forwards;
             will-change: transform;
-        }
-
-        @keyframes tickerScroll {
-            0%   { transform: translateX(0); }
-            100% { transform: translateX(calc(-100% - 100vw)); }
         }
 
         #tips-ticker-close {
@@ -129,27 +122,96 @@
     `;
     document.body.appendChild(root);
 
+    // Add Modal to HTML
+    const modalHtml = `
+        <div id="tips-modal-backdrop" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 2147483648; align-items: center; justify-content: center; backdrop-filter: blur(2px); pointer-events: auto;">
+            <div id="tips-modal" style="background: #1a0e0e; border: 1px solid #3a1a1a; border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 10px 40px rgba(0,0,0,0.5); position: relative;">
+                <div id="tips-modal-close" style="position: absolute; top: 12px; right: 12px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: rgba(229, 62, 62, 0.6); border-radius: 50%; font-size: 14px; transition: color 0.15s;">✕</div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid #3a1a1a; padding-bottom: 12px;">
+                    <div style="width: 8px; height: 8px; border-radius: 50%; background: #e53e3e; box-shadow: 0 0 8px rgba(229, 62, 62, 0.8);"></div>
+                    <span style="color: #e53e3e; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">Tip</span>
+                </div>
+                <div id="tips-modal-content" style="color: #f5e6e6; font-size: 16px; line-height: 1.6; font-weight: 400; word-wrap: break-word;"></div>
+            </div>
+        </div>
+    `;
+    root.insertAdjacentHTML('beforeend', modalHtml);
+
     const bar      = root.querySelector('#tips-ticker-bar');
     const textEl   = root.querySelector('#tips-ticker-text');
     const closeBtn = root.querySelector('#tips-ticker-close');
+    const backdrop = root.querySelector('#tips-modal-backdrop');
+    const modalContent = root.querySelector('#tips-modal-content');
+    const modalClose = root.querySelector('#tips-modal-close');
 
     let hideTimer = null;
+    let currentTipText = '';
 
-    function showTip(text) {
+    modalClose.addEventListener('click', () => {
+        backdrop.style.display = 'none';
+    });
+    
+    // Add hover effect for modal close button
+    modalClose.addEventListener('mouseenter', () => modalClose.style.color = '#e53e3e');
+    modalClose.addEventListener('mouseleave', () => modalClose.style.color = 'rgba(229, 62, 62, 0.6)');
+
+    backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) backdrop.style.display = 'none';
+    });
+
+    bar.addEventListener('click', (e) => {
+        if (e.target === closeBtn) return; // let close btn handle itself
+        
+        // Show modal with full tip text
+        modalContent.textContent = currentTipText;
+        backdrop.style.display = 'flex';
+        
+        // Hide scrolling ticker
+        clearTimeout(hideTimer);
+        hide();
+    });
+
+    function showTip(text, speed = 150) {
+        currentTipText = text;
         // Reset
         clearTimeout(hideTimer);
-        textEl.style.animation = 'none';
         textEl.textContent = text;
         bar.classList.add('visible');
 
-        // Calculate scroll duration based on text length: roughly 80px/sec, min 6s
-        const duration = Math.max(6, text.length * 0.12);
-        // Force reflow before re-applying animation
+        // Cancel previous animation if any
+        if (textEl.getAnimations) {
+            textEl.getAnimations().forEach(anim => anim.cancel());
+        }
+
+        // Force reflow before calculations
         void textEl.offsetWidth;
-        textEl.style.animation = `tickerScroll ${duration}s linear 1 forwards`;
+
+        const containerWidth = root.querySelector('#tips-ticker-scroll').offsetWidth;
+        const rawTextWidth = textEl.scrollWidth;
+
+        // With Web Animations API:
+        // text starts at containerWidth (right edge of scrolling container)
+        // text ends at -rawTextWidth (fully past the left edge)
+        const distance = containerWidth + rawTextWidth;
+        const durationMs = (distance / speed) * 1000;
+
+        // Fallback for browsers without animate API
+        if (!textEl.animate) {
+            textEl.style.transition = `transform ${durationMs}ms linear`;
+            textEl.style.transform = `translateX(-${rawTextWidth}px)`;
+        } else {
+            textEl.animate([
+                { transform: `translateX(${containerWidth}px)` },
+                { transform: `translateX(-${rawTextWidth}px)` }
+            ], {
+                duration: durationMs,
+                iterations: 1,
+                fill: 'forwards'
+            });
+        }
 
         // Hide after scroll completes + 0.5s buffer
-        hideTimer = setTimeout(hide, (duration + 0.5) * 1000);
+        hideTimer = setTimeout(hide, durationMs + 500);
     }
 
     function hide() {
@@ -164,7 +226,7 @@
     // ── Message Listener ──────────────────────────────────────────────────────
     chrome.runtime.onMessage.addListener((msg) => {
         if (msg.type === 'SHOW_TIP') {
-            showTip(msg.text);
+            showTip(msg.text, msg.scrollSpeed || 150);
         }
     });
 })();

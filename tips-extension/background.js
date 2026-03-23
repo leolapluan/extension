@@ -20,17 +20,27 @@ async function scheduleGlobalAlarm() {
 // ─── Show Tip ─────────────────────────────────────────────────────────────────
 
 async function showRandomTip() {
-    const { tips = [] } = await chrome.storage.sync.get('tips');
-    const activeTips = tips.filter(t => t.status === 'active');
+    const allData = await chrome.storage.sync.get(null);
+    const activeTips = [];
+    
+    for (const [key, value] of Object.entries(allData)) {
+        if (key.startsWith('tip-') && value.status === 'active') {
+            activeTips.push(value);
+        } else if (key === 'tips' && Array.isArray(value)) {
+            activeTips.push(...value.filter(t => t.status === 'active'));
+        }
+    }
+
     if (activeTips.length === 0) return;
 
     const tip = activeTips[Math.floor(Math.random() * activeTips.length)];
-    await displayTip(tip.text);
+    const config = await getConfig();
+    await displayTip(tip.text, config.scrollSpeed || 150);
 }
 
 /** Send tip to the active tab's content script as a scrolling ticker.
  *  Falls back to a Chrome notification if the tab can't receive messages. */
-async function displayTip(text) {
+async function displayTip(text, scrollSpeed = 150) {
     try {
         const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
         if (tab && tab.id && /^https?:/.test(tab.url || '')) {
@@ -41,7 +51,7 @@ async function displayTip(text) {
             });
             
             // Send message after ensuring script is injected
-            chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TIP', text });
+            chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TIP', text, scrollSpeed });
             return;
         }
     } catch (_) {

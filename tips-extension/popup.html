@@ -37,8 +37,8 @@
 
         body {
             width: 400px;
-            min-height: 520px;
-            max-height: 620px;
+            min-height: 570px;
+            max-height: 670px;
             background: var(--bg);
             color: var(--text);
             font-family: 'Inter', system-ui, sans-serif;
@@ -231,6 +231,12 @@
             box-shadow: 0 0 0 3px var(--accent-soft);
         }
 
+        .btn-add-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
         .btn-add {
             background: linear-gradient(135deg, var(--accent), var(--accent2));
             border: none;
@@ -242,7 +248,7 @@
             padding: 0 16px;
             height: 58px;
             cursor: pointer;
-            transition: opacity 0.15s, transform 0.1s, box-shadow 0.2s;
+            transition: opacity 0.15s, transform 0.1s, box-shadow 0.2s, height 0.2s;
             box-shadow: 0 3px 12px var(--accent-glow);
             letter-spacing: 0.03em;
             white-space: nowrap;
@@ -250,6 +256,21 @@
 
         .btn-add:hover { box-shadow: 0 4px 18px var(--accent-glow); opacity: 0.92; }
         .btn-add:active { transform: scale(0.96); }
+
+        .btn-cancel {
+            background: var(--bg3);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 0 16px;
+            height: 26px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .btn-cancel:hover { background: var(--bg2); color: var(--text); border-color: var(--text-dim); }
 
         /* ── Tabs ───────────────────────────────────────────── */
         .tabs {
@@ -394,6 +415,7 @@
             transition: background 0.15s, border-color 0.15s, color 0.15s;
         }
 
+        .icon-btn:hover.edit-btn    { background: rgba(255,255,255,0.1); border-color: var(--text-dim); color: var(--text); }
         .icon-btn:hover.toggle-btn  { background: var(--green-soft);  border-color: var(--green);  color: var(--green); }
         .icon-btn:hover.pause-btn   { background: var(--yellow-soft); border-color: var(--yellow); color: var(--yellow); }
         .icon-btn:hover.delete-btn  { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
@@ -460,10 +482,24 @@
         <button id="btn-test" class="btn-test">▶ Test</button>
     </div>
 
+    <!-- Ticker Scroll Speed Config -->
+    <div class="interval-config">
+        <div class="interval-config-label">
+            <span class="pill">Speed</span>
+            Ticker Scroll Spd
+        </div>
+        <input id="speed-value" class="interval-config-input" type="number" min="10" max="999" value="150" style="margin-right: 5px;" />
+        <div class="interval-config-label" style="flex:1;">px/second</div>
+        <button id="btn-save-speed" class="btn-save-interval">Apply</button>
+    </div>
+
     <!-- Add Tip Form -->
     <div class="add-form">
         <textarea id="tip-input" class="tip-textarea" placeholder="Write a tip to remember…" maxlength="280"></textarea>
-        <button id="btn-add" class="btn-add">+ Add</button>
+        <div class="btn-add-container">
+            <button id="btn-add" class="btn-add">+ Add</button>
+            <button id="btn-cancel" class="btn-cancel" style="display: none;">Cancel</button>
+        </div>
     </div>
 
     <!-- Tabs -->

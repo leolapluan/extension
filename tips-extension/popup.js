@@ -3,9 +3,10 @@
 // ─── State ────────────────────────────────────────────────────────────────────
 
 let tips = [];
-let globalConfig = { intervalMs: 1800000 }; // default 30 min
+let globalConfig = { intervalMs: 1800000, scrollSpeed: 150 }; // default 30 min, 150 px/s
 let currentTab = 'active';
 let countdownTimer = null;
+let editingId = null;
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -39,13 +40,42 @@ function formatCountdown(ms) {
 // ─── Storage ─────────────────────────────────────────────────────────────────
 
 async function load() {
-    const data = await chrome.storage.sync.get(['tips', 'globalConfig']);
-    tips = data.tips || [];
-    if (data.globalConfig) globalConfig = data.globalConfig;
+    const data = await chrome.storage.sync.get(null);
+    tips = [];
+    let hasLegacyTipsArray = false;
+
+    if (data.globalConfig) {
+        globalConfig = { ...globalConfig, ...data.globalConfig };
+    }
+
+    for (const [key, value] of Object.entries(data)) {
+        if (key.startsWith('tip-')) {
+            tips.push(value);
+        } else if (key === 'tips' && Array.isArray(value)) {
+            hasLegacyTipsArray = true;
+        }
+    }
+
+    tips.sort((a, b) => a.id.localeCompare(b.id));
+
+    if (hasLegacyTipsArray && data.tips.length > 0) {
+        const legacyTips = data.tips;
+        const migrationData = {};
+        for (const t of legacyTips) {
+            migrationData[`tip-${t.id}`] = t;
+            if (!tips.some(existing => existing.id === t.id)) {
+                tips.push(t);
+            }
+        }
+        await chrome.storage.sync.set(migrationData);
+        await chrome.storage.sync.remove('tips');
+    }
 }
 
-async function saveTips() {
-    await chrome.storage.sync.set({ tips });
+async function saveTip(tip) {
+    const data = {};
+    data[`tip-${tip.id}`] = tip;
+    await chrome.storage.sync.set(data);
 }
 
 async function saveConfig() {
@@ -97,6 +127,26 @@ async function applyInterval() {
     }, 1800);
 
     updateGlobalCountdown();
+}
+
+function loadSpeedUI() {
+    document.getElementById('speed-value').value = globalConfig.scrollSpeed || 150;
+}
+
+async function applySpeed() {
+    const val = parseInt(document.getElementById('speed-value').value, 10);
+    if (!val || isNaN(val) || val < 10) return;
+
+    globalConfig.scrollSpeed = val;
+    await saveConfig();
+
+    const btn = document.getElementById('btn-save-speed');
+    btn.textContent = '✓ Saved';
+    btn.classList.add('saved');
+    setTimeout(() => {
+        btn.textContent = 'Apply';
+        btn.classList.remove('saved');
+    }, 1800);
 }
 
 // ─── Global Countdown ─────────────────────────────────────────────────────────
@@ -153,6 +203,7 @@ function render() {
             <div class="tip-dot ${tip.status}"></div>
             <div class="tip-text">${escapeHtml(tip.text)}</div>
             <div class="tip-actions">
+                <button class="icon-btn edit-btn" data-id="${tip.id}" title="Edit">✏️</button>
                 ${isActive
                     ? `<button class="icon-btn pause-btn"  data-id="${tip.id}" title="Pause">⏸</button>`
                     : `<button class="icon-btn toggle-btn" data-id="${tip.id}" title="Activate">▶</button>`
@@ -163,6 +214,8 @@ function render() {
         listEl.appendChild(card);
     }
 
+    listEl.querySelectorAll('.edit-btn').forEach(btn =>
+        btn.addEventListener('click', () => startEdit(btn.dataset.id)));
     listEl.querySelectorAll('.pause-btn').forEach(btn =>
         btn.addEventListener('click', () => setStatus(btn.dataset.id, 'inactive')));
     listEl.querySelectorAll('.toggle-btn').forEach(btn =>
@@ -183,20 +236,54 @@ async function addTip() {
         return;
     }
 
-    tips.push({ id: uuid(), text, status: 'active' });
-    await saveTips();
+    if (editingId) {
+        const idx = tips.findIndex(t => t.id === editingId);
+        if (idx !== -1) {
+            tips[idx].text = text;
+            await saveTip(tips[idx]);
+        }
+        cancelEdit();
+    } else {
+        const newTip = { id: uuid(), text, status: 'active' };
+        tips.push(newTip);
+        await saveTip(newTip);
 
-    currentTab = 'active';
-    setActiveTab('active');
-    textEl.value = '';
+        currentTab = 'active';
+        setActiveTab('active');
+        textEl.value = '';
+    }
+
     render();
+}
+
+function startEdit(id) {
+    const tip = tips.find(t => t.id === id);
+    if (!tip) return;
+    editingId = id;
+    const textEl = document.getElementById('tip-input');
+    textEl.value = tip.text;
+    textEl.focus();
+    
+    document.getElementById('btn-add').textContent = 'Save';
+    document.getElementById('btn-add').style.height = '26px';
+    document.getElementById('btn-cancel').style.display = 'block';
+}
+
+function cancelEdit() {
+    editingId = null;
+    const textEl = document.getElementById('tip-input');
+    textEl.value = '';
+    
+    document.getElementById('btn-add').textContent = '+ Add';
+    document.getElementById('btn-add').style.height = '58px';
+    document.getElementById('btn-cancel').style.display = 'none';
 }
 
 async function setStatus(id, status) {
     const idx = tips.findIndex(t => t.id === id);
     if (idx === -1) return;
     tips[idx].status = status;
-    await saveTips();
+    await saveTip(tips[idx]);
     render();
 }
 
@@ -204,7 +291,7 @@ async function deleteTip(id) {
     const idx = tips.findIndex(t => t.id === id);
     if (idx === -1) return;
     tips[idx].status = 'deleted';
-    await saveTips();
+    await saveTip(tips[idx]);
     render();
 }
 
@@ -219,12 +306,15 @@ function setActiveTab(tab) {
 async function init() {
     await load();
     loadIntervalUI();
+    loadSpeedUI();
     render();
     updateGlobalCountdown();
     startCountdownTimer();
 
     document.getElementById('btn-add').addEventListener('click', addTip);
+    document.getElementById('btn-cancel').addEventListener('click', cancelEdit);
     document.getElementById('btn-save-interval').addEventListener('click', applyInterval);
+    document.getElementById('btn-save-speed').addEventListener('click', applySpeed);
 
     document.getElementById('btn-test').addEventListener('click', async () => {
         const btn = document.getElementById('btn-test');
@@ -251,8 +341,33 @@ async function init() {
     // Live sync from other devices
     chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== 'sync') return;
-        if (changes.tips) { tips = changes.tips.newValue || []; render(); }
-        if (changes.globalConfig) { globalConfig = changes.globalConfig.newValue; loadIntervalUI(); updateGlobalCountdown(); }
+        
+        let shouldRender = false;
+
+        // Check for tip updates
+        for (const [key, change] of Object.entries(changes)) {
+            if (key.startsWith('tip-')) {
+                const idx = tips.findIndex(t => t.id === key.replace('tip-', ''));
+                if (change.newValue) {
+                    if (idx > -1) tips[idx] = change.newValue;
+                    else tips.push(change.newValue);
+                } else {
+                    if (idx > -1) tips.splice(idx, 1);
+                }
+                shouldRender = true;
+            }
+            if (key === 'globalConfig') {
+                globalConfig = { ...globalConfig, ...change.newValue };
+                loadIntervalUI();
+                loadSpeedUI();
+                updateGlobalCountdown();
+            }
+        }
+        
+        if (shouldRender) {
+            tips.sort((a, b) => a.id.localeCompare(b.id));
+            render();
+        }
     });
 }
 
