@@ -131,7 +131,11 @@
                     <div style="width: 8px; height: 8px; border-radius: 50%; background: #e53e3e; box-shadow: 0 0 8px rgba(229, 62, 62, 0.8);"></div>
                     <span style="color: #e53e3e; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">Tip</span>
                 </div>
-                <div id="tips-modal-content" style="color: #f5e6e6; font-size: 16px; line-height: 1.6; font-weight: 400; word-wrap: break-word;"></div>
+                <textarea id="tips-modal-content" style="width: 100%; min-height: 100px; background: rgba(255,255,255,0.02); border: 1px solid #3a1a1a; color: #f5e6e6; font-size: 16px; line-height: 1.6; font-weight: 400; word-wrap: break-word; resize: vertical; border-radius: 8px; padding: 12px; margin-bottom: 16px; font-family: inherit; box-sizing: border-box; outline: none; transition: border-color 0.2s;"></textarea>
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button id="tips-modal-inactive" style="background: transparent; color: #e53e3e; border: 1px solid rgba(229, 62, 62, 0.4); border-radius: 6px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">Mark Inactive</button>
+                    <button id="tips-modal-save" style="background: #e53e3e; color: white; border: none; border-radius: 6px; padding: 8px 16px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s;">Save</button>
+                </div>
             </div>
         </div>
     `;
@@ -143,35 +147,100 @@
     const backdrop = root.querySelector('#tips-modal-backdrop');
     const modalContent = root.querySelector('#tips-modal-content');
     const modalClose = root.querySelector('#tips-modal-close');
+    const modalSave  = root.querySelector('#tips-modal-save');
+    const modalInactive = root.querySelector('#tips-modal-inactive');
 
     let hideTimer = null;
     let currentTipText = '';
+    let currentTipId = null;
 
     modalClose.addEventListener('click', () => {
         backdrop.style.display = 'none';
+        hide();
     });
     
     // Add hover effect for modal close button
     modalClose.addEventListener('mouseenter', () => modalClose.style.color = '#e53e3e');
     modalClose.addEventListener('mouseleave', () => modalClose.style.color = 'rgba(229, 62, 62, 0.6)');
 
+    modalSave.addEventListener('mouseenter', () => modalSave.style.background = '#c53030');
+    modalSave.addEventListener('mouseleave', () => modalSave.style.background = '#e53e3e');
+
+    modalInactive.addEventListener('mouseenter', () => { modalInactive.style.background = 'rgba(229, 62, 62, 0.1)'; modalInactive.style.borderColor = '#e53e3e'; });
+    modalInactive.addEventListener('mouseleave', () => { modalInactive.style.background = 'transparent'; modalInactive.style.borderColor = 'rgba(229, 62, 62, 0.4)'; });
+
+    modalContent.addEventListener('focus', () => modalContent.style.borderColor = '#e53e3e');
+    modalContent.addEventListener('blur', () => modalContent.style.borderColor = '#3a1a1a');
+
     backdrop.addEventListener('click', (e) => {
-        if (e.target === backdrop) backdrop.style.display = 'none';
+        if (e.target === backdrop) {
+            backdrop.style.display = 'none';
+            hide();
+        }
+    });
+
+    modalSave.addEventListener('click', () => {
+        const newText = modalContent.value.trim();
+        if (newText && currentTipId) {
+            chrome.storage.sync.get(`tip-${currentTipId}`, (data) => {
+                const key = `tip-${currentTipId}`;
+                const tip = data[key];
+                if (tip) {
+                    tip.text = newText;
+                    chrome.storage.sync.set({ [key]: tip }, () => {
+                        currentTipText = newText;
+                        textEl.textContent = newText;
+                        modalSave.textContent = 'Saved!';
+                        setTimeout(() => {
+                            modalSave.textContent = 'Save';
+                            backdrop.style.display = 'none';
+                            hide();
+                        }, 800);
+                    });
+                }
+            });
+        }
+    });
+
+    modalInactive.addEventListener('click', () => {
+        if (currentTipId) {
+            chrome.storage.sync.get(`tip-${currentTipId}`, (data) => {
+                const key = `tip-${currentTipId}`;
+                const tip = data[key];
+                if (tip && tip.status !== 'inactive') {
+                    tip.status = 'inactive';
+                    chrome.storage.sync.set({ [key]: tip }, () => {
+                        modalInactive.textContent = 'Inactivated!';
+                        setTimeout(() => {
+                            modalInactive.textContent = 'Mark Inactive';
+                            backdrop.style.display = 'none';
+                            hide();
+                        }, 800);
+                    });
+                }
+            });
+        }
     });
 
     bar.addEventListener('click', (e) => {
         if (e.target === closeBtn) return; // let close btn handle itself
         
-        // Show modal with full tip text
-        modalContent.textContent = currentTipText;
+        // Show modal with full tip text in textarea
+        modalContent.value = currentTipText;
         backdrop.style.display = 'flex';
         
-        // Hide scrolling ticker
+        // Pause scrolling ticker instead of hiding
         clearTimeout(hideTimer);
-        hide();
+        
+        if (textEl.getAnimations) {
+            textEl.getAnimations().forEach(anim => anim.pause());
+        } else {
+            textEl.style.animationPlayState = 'paused';
+        }
     });
 
-    function showTip(text, speed = 150) {
+    function showTip(tipId, text, speed = 150) {
+        currentTipId = tipId;
         currentTipText = text;
         // Reset
         clearTimeout(hideTimer);
@@ -226,7 +295,7 @@
     // ── Message Listener ──────────────────────────────────────────────────────
     chrome.runtime.onMessage.addListener((msg) => {
         if (msg.type === 'SHOW_TIP') {
-            showTip(msg.text, msg.scrollSpeed || 150);
+            showTip(msg.tipId, msg.text, msg.scrollSpeed || 150);
         }
     });
 })();

@@ -35,12 +35,12 @@ async function showRandomTip() {
 
     const tip = activeTips[Math.floor(Math.random() * activeTips.length)];
     const config = await getConfig();
-    await displayTip(tip.text, config.scrollSpeed || 150);
+    await displayTip(tip.id, tip.text, config.scrollSpeed || 150);
 }
 
 /** Send tip to the active tab's content script as a scrolling ticker.
  *  Falls back to a Chrome notification if the tab can't receive messages. */
-async function displayTip(text, scrollSpeed = 150) {
+async function displayTip(tipId, text, scrollSpeed = 150) {
     try {
         const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
         if (tab && tab.id && /^https?:/.test(tab.url || '')) {
@@ -51,7 +51,7 @@ async function displayTip(text, scrollSpeed = 150) {
             });
             
             // Send message after ensuring script is injected
-            chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TIP', text, scrollSpeed });
+            chrome.tabs.sendMessage(tab.id, { type: 'SHOW_TIP', tipId, text, scrollSpeed });
             return;
         }
     } catch (_) {
