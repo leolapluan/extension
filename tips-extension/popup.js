@@ -7,6 +7,7 @@ let globalConfig = { intervalMs: 1800000, scrollSpeed: 150, selectedTag: 'all' }
 let currentTab = 'active';
 let countdownTimer = null;
 let editingId = null;
+let autocompleteState = null;
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
@@ -58,13 +59,14 @@ function updateTagFilterOptions() {
     const sortedTags = Array.from(tags).sort();
     
     let html = '<option value="all">All Tags</option>';
+    html += '<option value="uncategorized">Uncategorized</option>';
     sortedTags.forEach(tag => {
         html += `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`;
     });
     
     select.innerHTML = html;
     
-    if (globalConfig.selectedTag && (globalConfig.selectedTag === 'all' || sortedTags.includes(globalConfig.selectedTag))) {
+    if (globalConfig.selectedTag && (globalConfig.selectedTag === 'all' || globalConfig.selectedTag === 'uncategorized' || sortedTags.includes(globalConfig.selectedTag))) {
         select.value = globalConfig.selectedTag;
     } else {
         select.value = 'all';
@@ -219,7 +221,11 @@ function render() {
     
     const selectedTag = document.getElementById('tag-filter').value;
     if (selectedTag && selectedTag !== 'all') {
-        shown = shown.filter(t => getTipTags(t.text).includes(selectedTag));
+        if (selectedTag === 'uncategorized') {
+            shown = shown.filter(t => getTipTags(t.text).length === 0);
+        } else {
+            shown = shown.filter(t => getTipTags(t.text).includes(selectedTag));
+        }
     }
 
     if (shown.length === 0) {
@@ -370,7 +376,76 @@ async function init() {
     });
 
     document.getElementById('tip-input').addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addTip(); }
+        if (e.key === 'Enter' && !e.shiftKey) { 
+            e.preventDefault(); 
+            addTip(); 
+        } else if (e.key === 'Tab' && !e.shiftKey) {
+            const textEl = e.target;
+            const text = textEl.value;
+            const cursorPosition = textEl.selectionStart;
+
+            if (autocompleteState && cursorPosition === autocompleteState.cursorPosition) {
+                e.preventDefault();
+                autocompleteState.currentIndex = (autocompleteState.currentIndex + 1) % autocompleteState.matches.length;
+                const nextTag = autocompleteState.matches[autocompleteState.currentIndex];
+                
+                const textBeforeTag = text.substring(0, autocompleteState.startIndex);
+                const textAfterCursor = text.substring(cursorPosition);
+                
+                const newTextBeforeCursor = textBeforeTag + nextTag;
+                textEl.value = newTextBeforeCursor + textAfterCursor;
+                textEl.selectionStart = textEl.selectionEnd = newTextBeforeCursor.length;
+                autocompleteState.cursorPosition = newTextBeforeCursor.length;
+                return;
+            }
+
+            const textBeforeCursor = text.substring(0, cursorPosition);
+            const match = textBeforeCursor.match(/#[\p{L}\p{N}_-]*$/u);
+            
+            if (match) {
+                e.preventDefault();
+                const typingTag = match[0].toLowerCase();
+                
+                const tags = new Set();
+                tips.forEach(t => {
+                    getTipTags(t.text).forEach(tag => tags.add(tag.toLowerCase()));
+                });
+                
+                const sortedTags = Array.from(tags).sort();
+                const matchingTags = sortedTags.filter(tag => tag.startsWith(typingTag));
+                
+                if (matchingTags.length > 0) {
+                    const originalTerm = typingTag;
+                    const startIndex = textBeforeCursor.length - typingTag.length;
+                    
+                    let currentIndex = 0;
+                    if (matchingTags.length > 1 && matchingTags[0] === typingTag) {
+                        currentIndex = 1;
+                    }
+                    
+                    const matchingTag = matchingTags[currentIndex];
+                    const textAfterCursor = text.substring(cursorPosition);
+                    const newTextBeforeCursor = textBeforeCursor.substring(0, startIndex) + matchingTag;
+                    
+                    textEl.value = newTextBeforeCursor + textAfterCursor;
+                    textEl.selectionStart = textEl.selectionEnd = newTextBeforeCursor.length;
+                    
+                    autocompleteState = {
+                        originalTerm,
+                        matches: matchingTags,
+                        currentIndex,
+                        startIndex,
+                        cursorPosition: newTextBeforeCursor.length
+                    };
+                }
+            } else {
+                autocompleteState = null;
+            }
+        } else {
+            if (e.key !== 'Shift') {
+                autocompleteState = null;
+            }
+        }
     });
 
     document.getElementById('tab-active').addEventListener('click', () => {
