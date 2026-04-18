@@ -479,7 +479,6 @@
             <option value="86400000">days</option>
         </select>
         <button id="btn-save-interval" class="btn-save-interval">Apply</button>
-        <button id="btn-test" class="btn-test">▶ Test</button>
     </div>
 
     <!-- Ticker Scroll Speed Config -->
@@ -510,6 +509,11 @@
         <button id="tab-inactive" class="tab-btn">
             Inactive <span id="badge-inactive" class="tab-badge">0</span>
         </button>
+        <div style="margin-left: auto; display: flex; align-items: center;">
+            <select id="tag-filter" class="interval-config-select" style="padding: 4px 8px; font-size: 11px; margin-left: 10px; border-color: var(--border);">
+                <option value="all">All Tags</option>
+            </select>
+        </div>
     </div>
 
     <!-- Tip List -->
@@ -520,6 +524,7 @@
         <div class="dot-pulse"></div>
         <span>Next random tip</span>
         <span id="global-countdown" class="countdown-val">—</span>
+        <button id="btn-test" class="btn-test" style="margin-left: auto;">▶ Test</button>
     </div>
 
     <script src="popup.js"></script>

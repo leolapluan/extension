@@ -3,7 +3,7 @@
 // ─── State ────────────────────────────────────────────────────────────────────
 
 let tips = [];
-let globalConfig = { intervalMs: 1800000, scrollSpeed: 150 }; // default 30 min, 150 px/s
+let globalConfig = { intervalMs: 1800000, scrollSpeed: 150, selectedTag: 'all' };
 let currentTab = 'active';
 let countdownTimer = null;
 let editingId = null;
@@ -35,6 +35,41 @@ function formatCountdown(ms) {
     if (h > 0) return `${h}h ${m}m`;
     if (m > 0) return `${m}m ${s}s`;
     return `${s}s`;
+}
+
+function getTipTags(text) {
+    const matches = text.match(/#\p{L}[\p{L}\p{N}_-]*/gu);
+    return matches ? matches.map(tag => tag.toLowerCase()) : [];
+}
+
+function stripTags(text) {
+    return text.replace(/#\p{L}[\p{L}\p{N}_-]*/gu, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+function updateTagFilterOptions() {
+    const select = document.getElementById('tag-filter');
+    const currentVal = select.value;
+    
+    const tags = new Set();
+    tips.forEach(t => {
+        getTipTags(t.text).forEach(tag => tags.add(tag));
+    });
+    
+    const sortedTags = Array.from(tags).sort();
+    
+    let html = '<option value="all">All Tags</option>';
+    sortedTags.forEach(tag => {
+        html += `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`;
+    });
+    
+    select.innerHTML = html;
+    
+    if (globalConfig.selectedTag && (globalConfig.selectedTag === 'all' || sortedTags.includes(globalConfig.selectedTag))) {
+        select.value = globalConfig.selectedTag;
+    } else {
+        select.value = 'all';
+        globalConfig.selectedTag = 'all';
+    }
 }
 
 // ─── Storage ─────────────────────────────────────────────────────────────────
@@ -171,14 +206,21 @@ function startCountdownTimer() {
 // ─── Render ───────────────────────────────────────────────────────────────────
 
 function render() {
+    updateTagFilterOptions();
+
     const active   = tips.filter(t => t.status === 'active');
     const inactive = tips.filter(t => t.status === 'inactive');
 
     document.getElementById('badge-active').textContent   = active.length;
     document.getElementById('badge-inactive').textContent = inactive.length;
 
-    const shown = currentTab === 'active' ? active : inactive;
+    let shown = currentTab === 'active' ? active : inactive;
     const listEl = document.getElementById('tip-list');
+    
+    const selectedTag = document.getElementById('tag-filter').value;
+    if (selectedTag && selectedTag !== 'all') {
+        shown = shown.filter(t => getTipTags(t.text).includes(selectedTag));
+    }
 
     if (shown.length === 0) {
         listEl.innerHTML = `
@@ -201,7 +243,7 @@ function render() {
         const isActive = tip.status === 'active';
         card.innerHTML = `
             <div class="tip-dot ${tip.status}"></div>
-            <div class="tip-text">${escapeHtml(tip.text)}</div>
+            <div class="tip-text">${escapeHtml(stripTags(tip.text))}</div>
             <div class="tip-actions">
                 <button class="icon-btn edit-btn" data-id="${tip.id}" title="Edit">✏️</button>
                 ${isActive
@@ -336,6 +378,12 @@ async function init() {
     });
     document.getElementById('tab-inactive').addEventListener('click', () => {
         setActiveTab('inactive'); render();
+    });
+
+    document.getElementById('tag-filter').addEventListener('change', async (e) => {
+        globalConfig.selectedTag = e.target.value;
+        await saveConfig();
+        render();
     });
 
     // Live sync from other devices

@@ -21,7 +21,7 @@ async function scheduleGlobalAlarm() {
 
 async function showRandomTip() {
     const allData = await chrome.storage.sync.get(null);
-    const activeTips = [];
+    let activeTips = [];
     
     for (const [key, value] of Object.entries(allData)) {
         if (key.startsWith('tip-') && value.status === 'active') {
@@ -33,9 +33,22 @@ async function showRandomTip() {
 
     if (activeTips.length === 0) return;
 
-    const tip = activeTips[Math.floor(Math.random() * activeTips.length)];
     const config = await getConfig();
-    await displayTip(tip.id, tip.text, config.scrollSpeed || 150);
+    const selectedTag = config.selectedTag;
+    
+    if (selectedTag && selectedTag !== 'all') {
+        activeTips = activeTips.filter(t => {
+            const matches = t.text.match(/#\p{L}[\p{L}\p{N}_-]*/gu);
+            const tags = matches ? matches.map(tag => tag.toLowerCase()) : [];
+            return tags.includes(selectedTag);
+        });
+    }
+
+    if (activeTips.length === 0) return;
+
+    const tip = activeTips[Math.floor(Math.random() * activeTips.length)];
+    const displayStr = tip.text.replace(/#\p{L}[\p{L}\p{N}_-]*/gu, '').replace(/\s{2,}/g, ' ').trim();
+    await displayTip(tip.id, displayStr, config.scrollSpeed || 150);
 }
 
 /** Send tip to the active tab's content script as a scrolling ticker.
