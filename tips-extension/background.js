@@ -37,11 +37,18 @@ async function showRandomTip() {
     const selectedTag = config.selectedTag;
     
     if (selectedTag && selectedTag !== 'all') {
-        activeTips = activeTips.filter(t => {
-            const matches = t.text.match(/#\p{L}[\p{L}\p{N}_-]*/gu);
-            const tags = matches ? matches.map(tag => tag.toLowerCase()) : [];
-            return tags.includes(selectedTag);
-        });
+        if (selectedTag === 'uncategorized') {
+            activeTips = activeTips.filter(t => {
+                const matches = t.text.match(/#\p{L}[\p{L}\p{N}_-]*/gu);
+                return !matches || matches.length === 0;
+            });
+        } else {
+            activeTips = activeTips.filter(t => {
+                const matches = t.text.match(/#\p{L}[\p{L}\p{N}_-]*/gu);
+                const tags = matches ? matches.map(tag => tag.toLowerCase()) : [];
+                return tags.includes(selectedTag);
+            });
+        }
     }
 
     if (activeTips.length === 0) return;
